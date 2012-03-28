@@ -463,7 +463,13 @@ void SpotifyResolver::search( const QString& qid, const QString& artist, const Q
         query = fullText;
         data->fulltext = true;
     }
+
+#if SPOTIFY_API_VERSION >= 11
+    sp_search_create( m_session, query.toUtf8().data(), 0, data->fulltext ? 50 : 1, 0, 0, 0, 0, 0, 0, SP_SEARCH_STANDARD, &SpotifyCallbacks::searchComplete, data );
+#else
     sp_search_create( m_session, query.toUtf8().data(), 0, data->fulltext ? 50 : 1, 0, 0, 0, 0, &SpotifyCallbacks::searchComplete, data );
+#endif
+
 }
 
 void
@@ -630,7 +636,9 @@ void SpotifyResolver::login()
 {
     if( !m_username.isEmpty() && !m_pw.isEmpty() ) { // log in
         qDebug() << "Logging in with username:" << m_username;
-#if SPOTIFY_API_VERSION > 8
+#if SPOTIFY_API_VERSION >= 11
+        sp_session_login(m_session, m_username.toLatin1(),  m_pw.toLatin1(), false, 0);
+#elif SPOTIFY_API_VERSION > 8
         sp_session_login(m_session, m_username.toLatin1(),  m_pw.toLatin1(), false);
 #else
         sp_session_login(m_session, m_username.toLatin1(),  m_pw.toLatin1());
