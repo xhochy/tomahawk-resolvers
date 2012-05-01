@@ -26,6 +26,8 @@
 
 #include "spotifyresolver.h"
 
+#include "SpotifyApi.h"
+
 #include "spotify_key.h"
 #include "consolewatcher.h"
 #include "qxthttpsessionmanager.h"
@@ -189,7 +191,7 @@ void SpotifyResolver::errorMsgReceived(sp_error error)
             break;
         default:
             debugMsg = true;
-            errMsg =  QString::fromUtf8( sp_error_message( error ) );
+            errMsg =  QString::fromUtf8( SpotifyApi::instance()->f_error_message( error ) );
             break;
     }
     errorMsgReceived( errMsg, debugMsg );
@@ -221,7 +223,7 @@ void SpotifyResolver::sendPlaylist( const SpotifyPlaylists::LoadedPlaylist& pl )
 {
     qDebug() << "Sending playlist to client:" << pl.name_ << "with number of tracks:" << pl.tracks_.size();
 
-    if ( !pl.playlist_ || !sp_playlist_is_loaded( pl.playlist_ ) )
+    if ( !pl.playlist_ || !SpotifyApi::instance()->f_playlist_is_loaded( pl.playlist_ ) )
     {
         qDebug() << "NULL or not loaded playlist in callbacK!";
         return;
@@ -242,7 +244,7 @@ void SpotifyResolver::sendPlaylist( const SpotifyPlaylists::LoadedPlaylist& pl )
 
     foreach( sp_track *tr, pl.tracks_ )
     {
-        if ( !tr || !sp_track_is_loaded( tr ) )
+        if ( !tr || !SpotifyApi::instance()->f_track_is_loaded( tr ) )
         {
             qDebug() << "IGNORING not loaded track!";
             continue;
@@ -264,7 +266,7 @@ void SpotifyResolver::sendPlaylistNameChanged( const SpotifyPlaylists::LoadedPla
 {
     qDebug() << "Sending playlist namechange to client:" << pl.name_;
 
-    if ( !pl.playlist_ || !sp_playlist_is_loaded( pl.playlist_ ) )
+    if ( !pl.playlist_ || !SpotifyApi::instance()->f_playlist_is_loaded( pl.playlist_ ) )
     {
         qDebug() << "NULL or not loaded playlist in callbacK!";
         return;
@@ -308,7 +310,7 @@ SpotifyResolver::sendTracksAdded( sp_playlist* pl, const QList< sp_track* >& tra
     QVariantList outgoingTracks;
     foreach( sp_track* track, tracks )
     {
-        if ( !track || !sp_track_is_loaded( track ) )
+        if ( !track || !SpotifyApi::instance()->f_track_is_loaded( track ) )
         {
             qDebug() << "IGNORING not loaded track!";
             continue;
@@ -514,7 +516,7 @@ void SpotifyResolver::loginResponse( bool success , const QString& msg)
     sendMessage( resp );
 
     sendSettingsMessage();
-    sp_session_preferred_bitrate( m_session->Session(), m_highQuality ? SP_BITRATE_320k : SP_BITRATE_160k );
+    SpotifyApi::instance()->f_session_preferred_bitrate( m_session->Session(), m_highQuality ? SP_BITRATE_320k : SP_BITRATE_160k );
 }
 
 
@@ -828,9 +830,9 @@ void SpotifyResolver::search( const QString& qid, const QString& artist, const Q
         data->fulltext = true;
     }
 #if SPOTIFY_API_VERSION >= 11
-    sp_search_create( m_session->Session(), query.toUtf8().data(), 0, data->fulltext ? 50 : 1, 0, 0, 0, 0, 0, 0, SP_SEARCH_STANDARD, &SpotifySearch::searchComplete, data );
+    SpotifyApi::instance()->f_search_create( m_session->Session(), query.toUtf8().data(), 0, data->fulltext ? 50 : 1, 0, 0, 0, 0, 0, 0, SP_SEARCH_STANDARD, &SpotifySearch::searchComplete, data );
 #else
-    sp_search_create( m_session->Session(), query.toUtf8().data(), 0, data->fulltext ? 50 : 1, 0, 0, 0, 0, &SpotifySearch::searchComplete, data );
+    SpotifyApi::instance()->f_search_create( m_session->Session(), query.toUtf8().data(), 0, data->fulltext ? 50 : 1, 0, 0, 0, 0, &SpotifySearch::searchComplete, data );
 #endif
 }
 
@@ -885,7 +887,7 @@ QString SpotifyResolver::addToTrackLinkMap(sp_link* link)
 
     QSettings s;
     char url[1024];
-    sp_link_as_string( link, url, sizeof( url ) );
+    SpotifyApi::instance()->f_link_as_string( link, url, sizeof( url ) );
 
     m_cachedTrackLinkMap[ uid ] = url;
     m_dirty = true;
@@ -900,7 +902,7 @@ sp_link* SpotifyResolver::linkFromTrack(const QString& uid)
     QString linkStr = m_cachedTrackLinkMap.value( uid );
     if (!linkStr.isEmpty() )
     {
-        sp_link* l = sp_link_create_from_string( linkStr.toAscii() );
+        sp_link* l = SpotifyApi::instance()->f_link_create_from_string( linkStr.toAscii().data() );
         m_trackLinkMap[ uid ] = l;
         return l;
     }
@@ -921,21 +923,21 @@ QVariantMap
 SpotifyResolver::spTrackToVariant( sp_track* tr )
 {
     QVariantMap track;
-    track[ "track" ] = QString::fromUtf8( sp_track_name( tr ) );
+    track[ "track" ] = QString::fromUtf8( SpotifyApi::instance()->f_track_name( tr ) );
 
-    sp_artist* artist = sp_track_artist( tr, 0 );
-    if ( sp_artist_is_loaded( artist ) )
-        track[ "artist" ] = QString::fromUtf8( sp_artist_name( artist ) );
+    sp_artist* artist = SpotifyApi::instance()->f_track_artist( tr, 0 );
+    if ( SpotifyApi::instance()->f_artist_is_loaded( artist ) )
+        track[ "artist" ] = QString::fromUtf8( SpotifyApi::instance()->f_artist_name( artist ) );
 
-    sp_album* album = sp_track_album( tr );
-    if ( sp_album_is_loaded( album ) )
-        track[ "album" ] = QString::fromUtf8( sp_album_name( album ) );
+    sp_album* album = SpotifyApi::instance()->f_track_album( tr );
+    if ( SpotifyApi::instance()->f_album_is_loaded( album ) )
+        track[ "album" ] = QString::fromUtf8( SpotifyApi::instance()->f_album_name( album ) );
 
-    sp_link* l = sp_link_create_from_track( tr, 0 );
+    sp_link* l = SpotifyApi::instance()->f_link_create_from_track( tr, 0 );
     char urlStr[256];
-    sp_link_as_string( l, urlStr, sizeof(urlStr) );
+    SpotifyApi::instance()->f_link_as_string( l, urlStr, sizeof(urlStr) );
     track[ "id" ] = QString::fromUtf8( urlStr );
-    sp_link_release( l );
+    SpotifyApi::instance()->f_link_release( l );
 
     return track;
 }

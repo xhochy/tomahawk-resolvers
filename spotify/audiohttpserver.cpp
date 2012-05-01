@@ -26,11 +26,15 @@
 
 #include "audiohttpserver.h"
 
+#include "SpotifyApi.h"
+
 #include "spotifyresolver.h"
 #include "QxtWebPageEvent"
 #include "spotifyiodevice.h"
 #include <QString>
 #include <QDebug>
+
+
 
 AudioHTTPServer::AudioHTTPServer( QxtAbstractWebSessionManager* sm, int port, QObject* parent )
     : QxtWebSlotService( sm, parent )
@@ -61,21 +65,21 @@ void AudioHTTPServer::sid( QxtWebRequestEvent* event, QString a )
     // get the sp_track
     sp_link* link = sApp->linkFromTrack( uid );
 
-    sp_track* track = sp_link_as_track( link );
+    sp_track* track = SpotifyApi::instance()->f_link_as_track( link );
     if( !track ) {
-        qWarning() << QThread::currentThreadId() << "Uh oh... got null track from link :(" << sp_link_type( link );
+        qWarning() << QThread::currentThreadId() << "Uh oh... got null track from link :(" << SpotifyApi::instance()->f_link_type( link );
         sendErrorResponse( event );
         return;
     }
-    if( !sp_track_is_loaded( track ) ) {
-        qWarning() << QThread::currentThreadId() << "uh oh... track not loaded yet! Asked for:" << sp_track_name( track );
+    if( !SpotifyApi::instance()->f_track_is_loaded( track ) ) {
+        qWarning() << QThread::currentThreadId() << "uh oh... track not loaded yet! Asked for:" << SpotifyApi::instance()->f_track_name( track );
         m_savedEvent = event;
         m_savedTrack = track;
         QTimer::singleShot( 250, this, SLOT( checkForLoaded() ) );
 //         sendErrorResponse( event );
         return;
 //         sendErrorResponse( event );
-//         while ( !sp_track_is_loaded( track ) ) {
+//         while ( !SpotifyApi::instance()->f_track_is_loaded( track ) ) {
 //             SleepThread::msleep( 250 );
 //             qDebug() << "zzz";
 
@@ -88,8 +92,8 @@ void AudioHTTPServer::sid( QxtWebRequestEvent* event, QString a )
 void AudioHTTPServer::checkForLoaded()
 {
      qDebug() << "Checking...";
-    if( !sp_track_is_loaded( m_savedTrack ) ) {
-         qWarning() << QThread::currentThreadId() << "uh oh... track not loaded yet! Asked for:" << sp_track_name( m_savedTrack );
+    if( !SpotifyApi::instance()->f_track_is_loaded( m_savedTrack ) ) {
+         qWarning() << QThread::currentThreadId() << "uh oh... track not loaded yet! Asked for:" << SpotifyApi::instance()->f_track_name( m_savedTrack );
         QTimer::singleShot( 250, this, SLOT( checkForLoaded() ) );
     } else {
         startStreamingResponse( m_savedEvent, m_savedTrack );
@@ -100,18 +104,18 @@ void AudioHTTPServer::checkForLoaded()
 void AudioHTTPServer::startStreamingResponse( QxtWebRequestEvent* event, sp_track* track )
 {
     // yay we gots a track
-    qDebug() << QThread::currentThreadId() << "We got a track!" << sp_track_name( track ) << sp_artist_name( sp_track_artist( track, 0 ) ) << sp_track_duration( track );
-    uint duration = sp_track_duration( track );
+    qDebug() << QThread::currentThreadId() << "We got a track!" << SpotifyApi::instance()->f_track_name( track ) << SpotifyApi::instance()->f_artist_name( SpotifyApi::instance()->f_track_artist( track, 0 ) ) << SpotifyApi::instance()->f_track_duration( track );
+    uint duration = SpotifyApi::instance()->f_track_duration( track );
 
-    sp_error err = sp_session_player_load( SpotifySession::getInstance()->Session(), track );
+    sp_error err = SpotifyApi::instance()->f_session_player_load( SpotifySession::getInstance()->Session(), track );
     if( err != SP_ERROR_OK ) {
-        qWarning() << QThread::currentThreadId() << "Failed to start track from spotify :(" << sp_error_message( err );
+        qWarning() << QThread::currentThreadId() << "Failed to start track from spotify :(" << SpotifyApi::instance()->f_error_message( err );
         sendErrorResponse( event );
         return;
     }
 
     qDebug() << QThread::currentThreadId() << "Starting to play!";
-    sp_session_player_play( SpotifySession::getInstance()->Session(), true );
+    SpotifyApi::instance()->f_session_player_play( SpotifySession::getInstance()->Session(), true );
     SpotifySession::getInstance()->Playback()->startPlaying();
 
     qDebug() << "Getting iodevice...";

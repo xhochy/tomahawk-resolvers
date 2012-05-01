@@ -30,6 +30,8 @@ set(tomahawkspotify_SRCS
     audiohttpserver.cpp
     spotifyiodevice.cpp
     main.cpp
+
+    SpotifyApi.cpp
 )
 
 set( tomahawkspotify_NOMOC_HDRS
@@ -55,7 +57,7 @@ set( tomahawkspotify_HDRS
 qt4_wrap_cpp( tomahawkspotify_MOC_HDRS ${tomahawkspotify_HDRS})
 
 add_executable(spotify_tomahawkresolver ${tomahawkspotify_SRCS} ${RC_SRCS} ${tomahawkspotify_MOC_HDRS} ${tomahawkspotify_NOMOC_HDRS} )
-target_link_libraries(spotify_tomahawkresolver qxtweb-standalone ${QT_QTCORE_LIBRARY} ${QT_QTGUI_LIBRARY} ${LIBSPOTIFY_LIBRARIES} ${QT_QTNETWORK_LIBRARY} ${QJSON_LIBRARIES})
+target_link_libraries(spotify_tomahawkresolver qxtweb-standalone ${QT_QTCORE_LIBRARY} ${QT_QTGUI_LIBRARY}  ${QT_QTNETWORK_LIBRARY} ${QJSON_LIBRARIES}) #${LIBSPOTIFY_LIBRARIES}
 
 if("${CMAKE_VERSION}" STREQUAL "2.8.5" OR "${CMAKE_VERSION}" STRGREATER "2.8.5")
     include(GNUInstallDirs)

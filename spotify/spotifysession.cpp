@@ -15,6 +15,7 @@
 
 #include "spotifysession.h"
 #include "callbacks.h"
+#include "SpotifyApi.h"
 
 SpotifySession* SpotifySession::s_instance = 0;
 
@@ -75,18 +76,18 @@ void SpotifySession::createSession()
 
     }
     m_config.userdata = this;
-    sp_error err = sp_session_create( &m_config, &m_session );
+    sp_error err = SpotifyApi::instance()->f_session_create( &m_config, &m_session );
 
     if ( SP_ERROR_OK != err )
     {
-        qDebug() << "Failed to create spotify session: " << sp_error_message( err );
+        qDebug() << "Failed to create spotify session: " << SpotifyApi::instance()->f_error_message( err );
     }
 }
 
 
 void SpotifySession::loggedIn(sp_session *session, sp_error error)
 {
-   SpotifySession* _session = reinterpret_cast<SpotifySession*>(sp_session_userdata(session));
+   SpotifySession* _session = reinterpret_cast<SpotifySession*>(SpotifyApi::instance()->f_session_userdata(session));
     if (error == SP_ERROR_OK) {
 
         qDebug() << "Logged in successfully!!";
@@ -96,12 +97,12 @@ void SpotifySession::loggedIn(sp_session *session, sp_error error)
 
         qDebug() << "Container called from thread" << _session->thread()->currentThreadId();
 
-        _session->setPlaylistContainer( sp_session_playlistcontainer(session) );
-        sp_playlistcontainer_add_ref( _session->PlaylistContainer() );
-        sp_playlistcontainer_add_callbacks(_session->PlaylistContainer(), &SpotifyCallbacks::containerCallbacks, _session);
+        _session->setPlaylistContainer( SpotifyApi::instance()->f_session_playlistcontainer(session) );
+        SpotifyApi::instance()->f_playlistcontainer_add_ref( _session->PlaylistContainer() );
+        SpotifyApi::instance()->f_playlistcontainer_add_callbacks(_session->PlaylistContainer(), &SpotifyCallbacks::containerCallbacks, _session);
     }
-    qDebug() << Q_FUNC_INFO << "==== " << sp_error_message( error ) << " ====";
-    const QString msg = QString::fromUtf8( sp_error_message( error ) );
+    qDebug() << Q_FUNC_INFO << "==== " << SpotifyApi::instance()->f_error_message( error ) << " ====";
+    const QString msg = QString::fromUtf8( SpotifyApi::instance()->f_error_message( error ) );
     emit _session->loginResponse( error == SP_ERROR_OK, msg );
 }
 
@@ -112,9 +113,9 @@ void SpotifySession::logout(bool clearPlaylists )
         if ( clearPlaylists )
             m_SpotifyPlaylists->unsetAllLoaded();
 
-        sp_playlistcontainer_remove_callbacks( m_container, &SpotifyCallbacks::containerCallbacks, this);
-        sp_playlistcontainer_release( m_container );
-        sp_session_logout(m_session);
+        SpotifyApi::instance()->f_playlistcontainer_remove_callbacks( m_container, &SpotifyCallbacks::containerCallbacks, this);
+        SpotifyApi::instance()->f_playlistcontainer_release( m_container );
+        SpotifyApi::instance()->f_session_logout(m_session);
     }
 
 }
@@ -146,7 +147,7 @@ void SpotifySession::login( const QString& username, const QString& password )
         ///         and relogin in callback
         /// @note2: We can be logged out, but the session is still connected to accesspoint
         ///         Wait for that to.
-        if( sp_session_connectionstate(m_session) != SP_CONNECTION_STATE_LOGGED_OUT || m_loggedIn)
+        if( SpotifyApi::instance()->f_session_connectionstate(m_session) != SP_CONNECTION_STATE_LOGGED_OUT || m_loggedIn)
         {
             qDebug() << Q_FUNC_INFO << "SpotifySession asked to relog in! Logging out";
             m_relogin = true;
@@ -156,9 +157,9 @@ void SpotifySession::login( const QString& username, const QString& password )
 
         qDebug() << Q_FUNC_INFO << "Logging in with username:" << m_username;
 #if SPOTIFY_API_VERSION >= 11
-        sp_session_login(m_session, m_username.toLatin1(), m_password.toLatin1(), false, NULL);
+        SpotifyApi::instance()->f_session_login(m_session, m_username.toLatin1(), m_password.toLatin1(), false, NULL);
 #else
-        sp_session_login(m_session, m_username.toLatin1(), m_password.toLatin1(), false);
+        SpotifyApi::instance()->f_session_login(m_session, m_username.toLatin1(), m_password.toLatin1(), false);
 #endif
     }
     else
@@ -173,7 +174,7 @@ SpotifySession::playlistReceived( const SpotifyPlaylists::LoadedPlaylist& playli
 {
     if( playlist.isLoaded && playlist.sync_ )
     {
-        qDebug() << "Received sync: " << playlist.id_ << sp_playlist_name( playlist.playlist_);
+        qDebug() << "Received sync: " << playlist.id_ << SpotifyApi::instance()->f_playlist_name( playlist.playlist_);
         emit notifySyncUpdateSignal( playlist );
     }
 }
@@ -183,7 +184,7 @@ SpotifySession::playlistReceived( const SpotifyPlaylists::LoadedPlaylist& playli
   **/
 void SpotifySession::loggedOut(sp_session *session)
 {
-    SpotifySession* _session = reinterpret_cast<SpotifySession*>(sp_session_userdata(session));
+    SpotifySession* _session = reinterpret_cast<SpotifySession*>(SpotifyApi::instance()->f_session_userdata(session));
     _session->setLoggedIn( false );
     qDebug() << "Logging out";
 
@@ -200,12 +201,12 @@ void SpotifySession::loggedOut(sp_session *session)
 void SpotifySession::connectionError(sp_session *session, sp_error error)
 {
     Q_UNUSED(session);
-    qDebug() << "Connection error: " << QString::fromUtf8(sp_error_message(error));
+    qDebug() << "Connection error: " << QString::fromUtf8(SpotifyApi::instance()->f_error_message(error));
 
 }
 void SpotifySession::notifyMainThread(sp_session *session)
 {
-    SpotifySession* _session = reinterpret_cast<SpotifySession*>(sp_session_userdata(session));
+    SpotifySession* _session = reinterpret_cast<SpotifySession*>(SpotifyApi::instance()->f_session_userdata(session));
     _session->sendNotifyThreadSignal();
 }
 void SpotifySession::logMessage(sp_session *session, const char *data)
@@ -224,7 +225,7 @@ void SpotifySession::notifyMainThread()
 {
     int timeout = 0;
     do {
-        sp_session_process_events( m_session, &timeout );
+        SpotifyApi::instance()->f_session_process_events( m_session, &timeout );
     } while( !timeout );
 
     QTimer::singleShot( timeout, this, SLOT( notifyMainThread() ) );

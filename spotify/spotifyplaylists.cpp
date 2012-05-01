@@ -19,16 +19,17 @@
 #include "spotifyresolver.h"
 #include <QCryptographicHash>
 #include <QApplication>
+#include "SpotifyApi.h"
 
 void printPlaylistTracks( const QList<sp_track* > tracks )
 {
     for ( int i = 0; i < tracks.size(); i++ )
     {
         char id[256];
-        sp_link* l = sp_link_create_from_track( tracks[i], 0 );
+        sp_link* l = SpotifyApi::instance()->f_link_create_from_track( tracks[i], 0 );
         if ( l )
-            sp_link_as_string( l, id, sizeof( id ) );
-        qDebug() << i << ":" << id << sp_track_name( tracks[i] ) << sp_artist_name( sp_track_artist( tracks[i], 0 ) ) << sp_album_name( sp_track_album( tracks[i] ) );
+            SpotifyApi::instance()->f_link_as_string( l, id, sizeof( id ) );
+        qDebug() << i << ":" << id << SpotifyApi::instance()->f_track_name( tracks[i] ) << SpotifyApi::instance()->f_artist_name( SpotifyApi::instance()->f_track_artist( tracks[i], 0 ) ) << SpotifyApi::instance()->f_album_name( SpotifyApi::instance()->f_track_album( tracks[i] ) );
     }
 
 }
@@ -38,8 +39,8 @@ bool checkTracksAreLoaded(QList< sp_track* > waitingForLoaded)
     bool found = !waitingForLoaded.isEmpty();
     foreach ( sp_track* t, waitingForLoaded )
     {
-        if ( t && sp_track_is_loaded( t ) )
-            qDebug() << "Found now-loaded track we were waiting for:" << sp_track_name(t) << sp_artist_name(sp_track_artist(t,0));
+        if ( t && SpotifyApi::instance()->f_track_is_loaded( t ) )
+            qDebug() << "Found now-loaded track we were waiting for:" << SpotifyApi::instance()->f_track_name(t) << SpotifyApi::instance()->f_artist_name(SpotifyApi::instance()->f_track_artist(t,0));
         else
             found = false;
     }
@@ -48,7 +49,7 @@ bool checkTracksAreLoaded(QList< sp_track* > waitingForLoaded)
 
 bool checkPlaylistIsLoaded(sp_playlist* pl )
 {
-    return pl && sp_playlist_is_loaded( pl );
+    return pl && SpotifyApi::instance()->f_playlist_is_loaded( pl );
 }
 
 SpotifyPlaylists::SpotifyPlaylists( QObject *parent )
@@ -136,18 +137,18 @@ void SpotifyPlaylists::clear()
     for ( int i = 0; i < m_playlists.size(); i++ )
     {
         foreach ( sp_track* track, m_playlists[ i ].tracks_ )
-            sp_track_release( track );
+            SpotifyApi::instance()->f_track_release( track );
 
         Sync s;
         s.id_ = m_playlists[ i ].id_;
         const bool sync = m_syncPlaylists.contains( s );
 
         if ( sync )
-            sp_playlist_remove_callbacks( m_playlists[ i ].playlist_, &SpotifyCallbacks::syncPlaylistCallbacks, this);
+            SpotifyApi::instance()->f_playlist_remove_callbacks( m_playlists[ i ].playlist_, &SpotifyCallbacks::syncPlaylistCallbacks, this);
         else
-            sp_playlist_remove_callbacks( m_playlists[ i ].playlist_, &SpotifyCallbacks::playlistCallbacks, this);
+            SpotifyApi::instance()->f_playlist_remove_callbacks( m_playlists[ i ].playlist_, &SpotifyCallbacks::playlistCallbacks, this);
 
-        sp_playlist_release( m_playlists[ i ].playlist_ );
+        SpotifyApi::instance()->f_playlist_release( m_playlists[ i ].playlist_ );
     }
     m_playlists.clear();
     m_syncPlaylists.clear();
@@ -178,10 +179,10 @@ SpotifyPlaylists::stateChanged( sp_playlist* pl, void* userdata )
 {
     SpotifyPlaylists* _playlists = reinterpret_cast<SpotifyPlaylists*>( userdata );
 
-//    qDebug() << Q_FUNC_INFO << "PLAYLIST_STATE_CHANGED for *non* synced playlist" << sp_playlist_name(pl) << "is loaded" << sp_playlist_is_loaded(pl) << sp_playlist_num_tracks(pl) << "tracks";
+//    qDebug() << Q_FUNC_INFO << "PLAYLIST_STATE_CHANGED for *non* synced playlist" << SpotifyApi::instance()->f_playlist_name(pl) << "is loaded" << SpotifyApi::instance()->f_playlist_is_loaded(pl) << SpotifyApi::instance()->f_playlist_num_tracks(pl) << "tracks";
     // If the playlist isn't loaded yet we have to wait
 
-    if ( !sp_playlist_is_loaded( pl ) )
+    if ( !SpotifyApi::instance()->f_playlist_is_loaded( pl ) )
     {
 //       qDebug() << "Playlist isn't loaded yet, waiting";
       return;
@@ -214,8 +215,8 @@ SpotifyPlaylists::stateChanged( sp_playlist* pl, void* userdata )
 void
 SpotifyPlaylists::syncStateChanged( sp_playlist* pl, void* userdata )
 {
-    qDebug() << "Playlist state changed for synced playlist:" << pl << sp_playlist_name(pl) << "is loaded?" << sp_playlist_is_loaded(pl);
-    if ( !sp_playlist_is_loaded( pl ) )
+    qDebug() << "Playlist state changed for synced playlist:" << pl << SpotifyApi::instance()->f_playlist_name(pl) << "is loaded?" << SpotifyApi::instance()->f_playlist_is_loaded(pl);
+    if ( !SpotifyApi::instance()->f_playlist_is_loaded( pl ) )
     {
 //       qDebug() << "Playlist isn't loaded yet, waiting";
       return;
@@ -231,7 +232,7 @@ SpotifyPlaylists::syncStateChanged( sp_playlist* pl, void* userdata )
 void
 SpotifyPlaylists::playlistRenamed(sp_playlist *pl, void *userdata)
 {
-    qDebug() << "Playlist renamned to " << sp_playlist_name( pl );
+    qDebug() << "Playlist renamned to " << SpotifyApi::instance()->f_playlist_name( pl );
     SpotifyPlaylists* _playlists = reinterpret_cast<SpotifyPlaylists*>( userdata );
     _playlists->playlistNameChange( pl );
 }
@@ -283,19 +284,19 @@ SpotifyPlaylists::checkWaitingForLoads()
 sp_playlist * SpotifyPlaylists::getPlaylistFromUri(const QString &uri)
 {
 
-    sp_link *plink = sp_link_create_from_string( uri.toLocal8Bit() );
+    sp_link *plink = SpotifyApi::instance()->f_link_create_from_string( uri.toLocal8Bit().data() );
     if ( !plink ) {
         qDebug() << "Playlist link is not a spotify link";
         return NULL;
     }
 
-    if ( sp_link_type( plink ) != SP_LINKTYPE_PLAYLIST ) {
+    if ( SpotifyApi::instance()->f_link_type( plink ) != SP_LINKTYPE_PLAYLIST ) {
         qDebug() << "Playlist link is not a valid spotify link";
-        sp_link_release( plink );
+        SpotifyApi::instance()->f_link_release( plink );
         return NULL;
     }
-    sp_playlist *playlist = sp_playlist_create(SpotifySession::getInstance()->Session(), plink);
-    sp_link_release( plink );
+    sp_playlist *playlist = SpotifyApi::instance()->f_playlist_create(SpotifySession::getInstance()->Session(), plink);
+    SpotifyApi::instance()->f_link_release( plink );
     return playlist;
 
 }
@@ -318,7 +319,7 @@ void SpotifyPlaylists::addSubscribedPlaylist(const QString &playlistUri )
 
     if( playlist != NULL )
     {
-        if( sp_playlist_is_loaded( playlist ) )
+        if( SpotifyApi::instance()->f_playlist_is_loaded( playlist ) )
         {
             /// @note we can subscribe on a non collaborative pl as well
             addPlaylist( playlist, true, true );
@@ -375,10 +376,10 @@ void SpotifyPlaylists::setCollaborative(const QString &playlistUri, bool collab 
     index = m_playlists.indexOf( lpl );
     if( index != -1 ){
         // set_collaborative is void function, so check if the user can set the state on this uri
-        QString username = sp_user_canonical_name( sp_session_user( SpotifySession::getInstance()->Session() ) );
+        QString username = SpotifyApi::instance()->f_user_canonical_name( SpotifyApi::instance()->f_session_user( SpotifySession::getInstance()->Session() ) );
         if( lpl.isLoaded && lpl.name_.contains( username ) )
         {
-            sp_playlist_set_collaborative(lpl.playlist_, collab );
+            SpotifyApi::instance()->f_playlist_set_collaborative(lpl.playlist_, collab );
             m_playlists[ index ].isCollaborative = collab;
         }
     }
@@ -408,10 +409,10 @@ SpotifyPlaylists::getLoadedPlaylist( sp_playlist *&playlist )
   **/
 void SpotifyPlaylists::doSend( const SpotifyPlaylists::LoadedPlaylist& playlist )
 {
-    if( !sp_playlist_is_loaded( playlist.playlist_) )
+    if( !SpotifyApi::instance()->f_playlist_is_loaded( playlist.playlist_) )
         return;
 
-    qDebug() << "Sending " << sp_playlist_name( playlist.playlist_ ) << "playlist to client with:" << sp_playlist_num_tracks( playlist.playlist_ );
+    qDebug() << "Sending " << SpotifyApi::instance()->f_playlist_name( playlist.playlist_ ) << "playlist to client with:" << SpotifyApi::instance()->f_playlist_num_tracks( playlist.playlist_ );
     emit( sendLoadedPlaylist( playlist ) );
 }
 
@@ -445,7 +446,7 @@ SpotifyPlaylists::loadContainerSlot(sp_playlistcontainer *pc){
     if( !m_allLoaded && !m_isLoading )
     {
         qDebug() << "Container load from thread id" << thread()->currentThreadId();
-        int numPls = sp_playlistcontainer_num_playlists( pc );
+        int numPls = SpotifyApi::instance()->f_playlistcontainer_num_playlists( pc );
 
         if(numPls == -1)
         {
@@ -461,7 +462,7 @@ SpotifyPlaylists::loadContainerSlot(sp_playlistcontainer *pc){
         for ( int i = 0 ; i < numPls; ++i )
         {
 
-            sp_playlist_type type = sp_playlistcontainer_playlist_type(pc, i);
+            sp_playlist_type type = SpotifyApi::instance()->f_playlistcontainer_playlist_type(pc, i);
             /**
               There are 4 types of playlist
                 Placeholder ( Can be anything, artist, track, playlist whatever (resides in inbox)
@@ -470,15 +471,15 @@ SpotifyPlaylists::loadContainerSlot(sp_playlistcontainer *pc){
                 Playlist
               Folder is just a name for a parent
               Placeholder we dont care about atm
-              Playlist is what we want. Thus, sp_playlistcontainer_num_playlist is not
+              Playlist is what we want. Thus, SpotifyApi::instance()->f_playlistcontainer_num_playlist is not
               really a great nominee for playlistcount.
               **/
             if( type == SP_PLAYLIST_TYPE_PLAYLIST )
             {
-                sp_playlist* pl = sp_playlistcontainer_playlist( pc, i );
+                sp_playlist* pl = SpotifyApi::instance()->f_playlistcontainer_playlist( pc, i );
 
-                qDebug() << "Adding playlist:" << pl << sp_playlist_is_loaded( pl ) << sp_playlist_name( pl ) << sp_playlist_num_tracks( pl );
-                if ( sp_playlist_is_loaded( pl ) )
+                qDebug() << "Adding playlist:" << pl << SpotifyApi::instance()->f_playlist_is_loaded( pl ) << SpotifyApi::instance()->f_playlist_name( pl ) << SpotifyApi::instance()->f_playlist_num_tracks( pl );
+                if ( SpotifyApi::instance()->f_playlist_is_loaded( pl ) )
                     addPlaylist( pl );
                 else
                     m_waitingToLoad << pl;
@@ -508,12 +509,12 @@ SpotifyPlaylists::playlistNameChange(sp_playlist *pl )
     const int index = m_playlists.indexOf( playlist );
 
     if( index == -1 ) {
-        qWarning() << "Renamed a playlist we don't know about? WTF!" << ( QString::fromUtf8(sp_playlist_name( pl )).isEmpty() ? "empty name " : sp_playlist_name( pl ) );
+        qWarning() << "Renamed a playlist we don't know about? WTF!" << ( QString::fromUtf8(SpotifyApi::instance()->f_playlist_name( pl )).isEmpty() ? "empty name " : SpotifyApi::instance()->f_playlist_name( pl ) );
         return;
     }
 
-    qDebug() << "Renamning " << m_playlists[index].name_ << " to " << sp_playlist_name( pl );
-    m_playlists[index].name_ = sp_playlist_name( pl );
+    qDebug() << "Renamning " << m_playlists[index].name_ << " to " << SpotifyApi::instance()->f_playlist_name( pl );
+    m_playlists[index].name_ = SpotifyApi::instance()->f_playlist_name( pl );
 
     // container update, send signal, notify name change
     emit notifyContainerLoadedSignal();
@@ -532,10 +533,10 @@ void
 SpotifyPlaylists::addStarredTracksToContainer()
 {
 
-    sp_playlist* starredTracks = sp_session_starred_create( SpotifySession::getInstance()->Session() );
+    sp_playlist* starredTracks = SpotifyApi::instance()->f_session_starred_create( SpotifySession::getInstance()->Session() );
     qDebug() << "Created starred playlist:" << starredTracks;
 
-    if ( sp_playlist_is_loaded( starredTracks ) )
+    if ( SpotifyApi::instance()->f_playlist_is_loaded( starredTracks ) )
     {
         qDebug() << "Starred tracks loaded!";
         addPlaylist( starredTracks );
@@ -556,9 +557,9 @@ SpotifyPlaylists::addStarredTracksToContainer()
 void
 SpotifyPlaylists::waitForLoad( sp_playlist *playlist )
 {
-    if ( sp_playlist_is_loaded( playlist ) )
+    if ( SpotifyApi::instance()->f_playlist_is_loaded( playlist ) )
     {
-        qDebug() << "WaitForLoaded is loaded" << sp_playlist_name( playlist );
+        qDebug() << "WaitForLoaded is loaded" << SpotifyApi::instance()->f_playlist_name( playlist );
         addPlaylist( playlist );
 
     }else
@@ -581,12 +582,12 @@ SpotifyPlaylists::playlistAddedCallback( sp_playlistcontainer* pc, sp_playlist* 
 {
     QString pl;
     if ( playlist )
-        pl = QString::fromUtf8( sp_playlist_name( playlist ) );
+        pl = QString::fromUtf8( SpotifyApi::instance()->f_playlist_name( playlist ) );
     qDebug() << Q_FUNC_INFO << "================ IN PLAYLISTADDED CALLBACK for playlist:" << playlist << pl;
 
     SpotifySession* _session = reinterpret_cast<SpotifySession*>( userdata );
 
-    const QString name = QString::fromUtf8( sp_playlist_name( playlist ) );
+    const QString name = QString::fromUtf8( SpotifyApi::instance()->f_playlist_name( playlist ) );
     if ( _session->Playlists()->m_playlistNameCreationToIgnore.contains( name ) )
     {
         _session->Playlists()->m_playlistNameCreationToIgnore.remove( name );
@@ -627,7 +628,7 @@ SpotifyPlaylists::playlistRemovedCallback( sp_playlistcontainer* pc, sp_playlist
 
     QString name;
     if ( playlist )
-        name = QString::fromUtf8( sp_playlist_name( playlist ) );
+        name = QString::fromUtf8( SpotifyApi::instance()->f_playlist_name( playlist ) );
 
     qDebug() << "Playlist removed" << playlist << name;
 
@@ -655,7 +656,7 @@ SpotifyPlaylists::tracksAdded(sp_playlist *pl, sp_track * const *tracks, int num
     for( int i = 0; i < num_tracks; i++ )
     {
         sp_track* track = tracks[i];
-        sp_track_add_ref( track );
+        SpotifyApi::instance()->f_track_add_ref( track );
         trackList << track;
     }
 
@@ -685,7 +686,7 @@ SpotifyPlaylists::addStateChangedCallback( PlaylistClosure *closure )
 void
 SpotifyPlaylists::addTracksFromSpotify(sp_playlist* pl, QList<sp_track*> tracks, int pos)
 {
-    qDebug() << "Adding tracks to" << sp_playlist_name(pl) << "from spotify notification";
+    qDebug() << "Adding tracks to" << SpotifyApi::instance()->f_playlist_name(pl) << "from spotify notification";
 
     LoadedPlaylist playlist;
     playlist.playlist_ = pl;
@@ -694,19 +695,19 @@ SpotifyPlaylists::addTracksFromSpotify(sp_playlist* pl, QList<sp_track*> tracks,
     if( index == -1 ) {
 
         qWarning() << "Got added tracks for a playlist we don't know about? WTF!"
-                   << ( QString::fromUtf8(sp_playlist_name( pl )).isEmpty() ? "empty name " : sp_playlist_name( pl ) );
+                   << ( QString::fromUtf8(SpotifyApi::instance()->f_playlist_name( pl )).isEmpty() ? "empty name " : SpotifyApi::instance()->f_playlist_name( pl ) );
         return;
     }
 
     // find the spotify track of the song before the newly inserted one
     const int beforePos = (pos == 0 ? 0 : pos - 1);
     char trackStr[256];
-    sp_track* t = sp_playlist_track( pl, beforePos );
+    sp_track* t = SpotifyApi::instance()->f_playlist_track( pl, beforePos );
 
-    if ( !t || !sp_track_is_loaded( t ) )
+    if ( !t || !SpotifyApi::instance()->f_track_is_loaded( t ) )
     {
         qWarning() << "NOTE! Got tracks inserted after a track that is not loaded or null! "
-                   << beforePos << t << (t ? sp_track_is_loaded( t ) : false);
+                   << beforePos << t << (t ? SpotifyApi::instance()->f_track_is_loaded( t ) : false);
         if ( !t )
         {
             qWarning() << "TODO can't handle null tracks in playlist... how did this happen?";
@@ -732,7 +733,7 @@ SpotifyPlaylists::addTracksFromSpotify(sp_playlist* pl, QList<sp_track*> tracks,
             qDebug() << "got NULL track in addTracksFromSpotify, can't handle. ignoring this track!";
             continue;
         }
-        else if ( !sp_track_is_loaded(t) )
+        else if ( !SpotifyApi::instance()->f_track_is_loaded(t) )
         {
             qDebug() << Q_FUNC_INFO << "Got not loaded sp_track, waiting!";
             waitingFor << t;
@@ -746,21 +747,21 @@ SpotifyPlaylists::addTracksFromSpotify(sp_playlist* pl, QList<sp_track*> tracks,
         return;
     }
 
-    sp_link* link = sp_link_create_from_track( t, 0 );
-    sp_link_as_string( link, trackStr, sizeof( trackStr ) );
+    sp_link* link = SpotifyApi::instance()->f_link_create_from_track( t, 0 );
+    SpotifyApi::instance()->f_link_as_string( link, trackStr, sizeof( trackStr ) );
     const QString trackPosition = QString::fromUtf8( trackStr );
-    sp_link_release( link );
+    SpotifyApi::instance()->f_link_release( link );
 
     int runningPos = pos; // We start one before, since spotify reports the end index, not index of item to insert after
     foreach( sp_track* track, tracks )
     {
-        qDebug() << "Adding track " << sp_track_name( track ) << "at pos:" << runningPos;
-        sp_track_add_ref( track );
+        qDebug() << "Adding track " << SpotifyApi::instance()->f_track_name( track ) << "at pos:" << runningPos;
+        SpotifyApi::instance()->f_track_add_ref( track );
         m_playlists[index].tracks_.insert(runningPos, track );
         runningPos++;
 
-        // This undoes the sp_track_add_ref in the addTracks callback
-        sp_track_release( track );
+        // This undoes the SpotifyApi::instance()->f_track_add_ref in the addTracks callback
+        SpotifyApi::instance()->f_track_release( track );
     }
 
     runningPos++; // We found the track to insert after, so increase for new index
@@ -871,7 +872,7 @@ SpotifyPlaylists::removeTracksFromSpotify(sp_playlist* pl, QList<int> tracks)
 
     if( index == -1 ) {
 
-        qWarning() << "Got added tracks for a playlist we don't know about? WTF!" << sp_playlist_name( pl );
+        qWarning() << "Got added tracks for a playlist we don't know about? WTF!" << SpotifyApi::instance()->f_playlist_name( pl );
         return;
     }
 
@@ -899,9 +900,9 @@ SpotifyPlaylists::removeTracksFromSpotify(sp_playlist* pl, QList<int> tracks)
     foreach ( sp_track* remove, toRemove )
     {
         const int got = m_playlists[ index ].tracks_.removeAll( remove );
-        qDebug() << "removing:" << sp_track_name(remove) << sp_artist_name(sp_track_artist(remove, 0))
+        qDebug() << "removing:" << SpotifyApi::instance()->f_track_name(remove) << SpotifyApi::instance()->f_artist_name(SpotifyApi::instance()->f_track_artist(remove, 0))
                  << "and actually removed:" << got;
-        sp_track_release( remove );
+        SpotifyApi::instance()->f_track_release( remove );
     }
 
     // We need to update the revision with current timestamp
@@ -931,7 +932,7 @@ SpotifyPlaylists::moveTracks(sp_playlist* pl, QList<int> tracks, int new_positio
     const int index = m_playlists.indexOf( playlist );
     if( index == -1 ) {
 
-        qWarning() << "Got moved tracks for a playlist we don't know about? WTF!" << sp_playlist_name( pl );
+        qWarning() << "Got moved tracks for a playlist we don't know about? WTF!" << SpotifyApi::instance()->f_playlist_name( pl );
         return;
     }
 
@@ -995,10 +996,10 @@ SpotifyPlaylists::trackId( sp_track* track )
     QString trackIdStr;
 
     char trackId[256];
-    sp_link* link = sp_link_create_from_track( track, 0 );
-    sp_link_as_string( link, trackId, sizeof( trackId ) );
+    sp_link* link = SpotifyApi::instance()->f_link_create_from_track( track, 0 );
+    SpotifyApi::instance()->f_link_as_string( link, trackId, sizeof( trackId ) );
     trackIdStr = QString::fromUtf8( trackId );
-    sp_link_release( link );
+    SpotifyApi::instance()->f_link_release( link );
 
     return trackIdStr;
 }
@@ -1055,21 +1056,21 @@ SpotifyPlaylists::setSyncPlaylist( const QString id, bool sync )
             m_playlists[ index ].sync_ = true;
             // Playlist contents may have changed since we originally loaded it, so we refresh it now
             m_playlists[ index ].tracks_.clear();
-            for( int i = 0; i < sp_playlist_num_tracks( m_playlists[ index ].playlist_ ); i++ )
-                m_playlists[ index ].tracks_ << sp_playlist_track( m_playlists[ index ].playlist_, i );
+            for( int i = 0; i < SpotifyApi::instance()->f_playlist_num_tracks( m_playlists[ index ].playlist_ ); i++ )
+                m_playlists[ index ].tracks_ << SpotifyApi::instance()->f_playlist_track( m_playlists[ index ].playlist_, i );
 
-            sp_playlist_remove_callbacks( m_playlists[ index ].playlist_, &SpotifyCallbacks::playlistCallbacks, this);
-            qDebug() << "ADDING SYNC CALLBACKS FOR PLAYLIST:" << sp_playlist_name( m_playlists[ index ].playlist_ );
+            SpotifyApi::instance()->f_playlist_remove_callbacks( m_playlists[ index ].playlist_, &SpotifyCallbacks::playlistCallbacks, this);
+            qDebug() << "ADDING SYNC CALLBACKS FOR PLAYLIST:" << SpotifyApi::instance()->f_playlist_name( m_playlists[ index ].playlist_ );
 
-            sp_playlist_add_callbacks( m_playlists[ index ].playlist_, &SpotifyCallbacks::syncPlaylistCallbacks, this);
+            SpotifyApi::instance()->f_playlist_add_callbacks( m_playlists[ index ].playlist_, &SpotifyCallbacks::syncPlaylistCallbacks, this);
         }
         // The playlist is in syncmode, but user wants to remove it
         else if( syncIndex != -1 && !sync )
         {
             m_syncPlaylists.removeAt( syncIndex );
             m_playlists[ index ].sync_ = false;
-            sp_playlist_remove_callbacks( m_playlists[ index ].playlist_, &SpotifyCallbacks::syncPlaylistCallbacks, this);
-            sp_playlist_add_callbacks( m_playlists[ index ].playlist_, &SpotifyCallbacks::playlistCallbacks, this);
+            SpotifyApi::instance()->f_playlist_remove_callbacks( m_playlists[ index ].playlist_, &SpotifyCallbacks::syncPlaylistCallbacks, this);
+            SpotifyApi::instance()->f_playlist_add_callbacks( m_playlists[ index ].playlist_, &SpotifyCallbacks::playlistCallbacks, this);
         }
 
         writeSettings();
@@ -1094,7 +1095,7 @@ void SpotifyPlaylists::tracksRemoved(sp_playlist *playlist, const int *tracks, i
     for (int i = 0; i < num_tracks; i++)
         removedTrackIndices << tracks[i];
 
-    qDebug() << "Tracks removed callback for playlist:" << sp_playlist_name( playlist ) << "and indices removed:" << removedTrackIndices << ", now calling member func";
+    qDebug() << "Tracks removed callback for playlist:" << SpotifyApi::instance()->f_playlist_name( playlist ) << "and indices removed:" << removedTrackIndices << ", now calling member func";
     if ( QThread::currentThread() != QCoreApplication::instance()->thread() )
         QMetaObject::invokeMethod( _playlists, "removeTracksFromSpotify", Qt::QueuedConnection, Q_ARG(sp_playlist*, playlist), Q_ARG(QList<int>, removedTrackIndices));
     else
@@ -1200,12 +1201,12 @@ SpotifyPlaylists::doRemovePlaylist( sp_playlist *playlist )
     int index = m_playlists.indexOf( pl );
     int pcIndex = index;
 
-    if ( sp_playlistcontainer_playlist( SpotifySession::getInstance()->PlaylistContainer(), index ) != playlist )
+    if ( SpotifyApi::instance()->f_playlistcontainer_playlist( SpotifySession::getInstance()->PlaylistContainer(), index ) != playlist )
     {
         qWarning() << "Was asked to delete a playlist that we have in a different index from the playlist container! Trying to find the real one";
-        for( int i = 0; i < sp_playlistcontainer_num_playlists( SpotifySession::getInstance()->PlaylistContainer() ); i++ )
+        for( int i = 0; i < SpotifyApi::instance()->f_playlistcontainer_num_playlists( SpotifySession::getInstance()->PlaylistContainer() ); i++ )
         {
-            if ( sp_playlistcontainer_playlist( SpotifySession::getInstance()->PlaylistContainer(), i ) == playlist )
+            if ( SpotifyApi::instance()->f_playlistcontainer_playlist( SpotifySession::getInstance()->PlaylistContainer(), i ) == playlist )
             {
                 pcIndex = i;
                 break;
@@ -1216,7 +1217,7 @@ SpotifyPlaylists::doRemovePlaylist( sp_playlist *playlist )
     if ( pcIndex > -1 )
     {
         sApp->setIgnoreNextUpdate( true );
-        sp_playlistcontainer_remove_playlist( SpotifySession::getInstance()->PlaylistContainer(), pcIndex );
+        SpotifyApi::instance()->f_playlistcontainer_remove_playlist( SpotifySession::getInstance()->PlaylistContainer(), pcIndex );
     } else
         qWarning() << "Failed to find playlist to delete in the playlistcontainer....";
 }
@@ -1229,7 +1230,7 @@ SpotifyPlaylists::doRemovePlaylist( sp_playlist *playlist )
 void
 SpotifyPlaylists::setPlaylistInProgress( sp_playlist *pl, bool done )
 {
-//    qDebug()<< Q_FUNC_INFO << "got PLAYLIST_IN_PROGRESS with playlist and done?: " << sp_playlist_name(pl) << done << "playlist is loaded?" << sp_playlist_is_loaded(pl);
+//    qDebug()<< Q_FUNC_INFO << "got PLAYLIST_IN_PROGRESS with playlist and done?: " << SpotifyApi::instance()->f_playlist_name(pl) << done << "playlist is loaded?" << SpotifyApi::instance()->f_playlist_is_loaded(pl);
 //     qDebug() << "In Progress in thread id" << thread()->currentThreadId();
 //     LoadedPlaylist playlist;
 //     playlist.playlist_ = pl;
@@ -1237,7 +1238,7 @@ SpotifyPlaylists::setPlaylistInProgress( sp_playlist *pl, bool done )
 //     const int index = m_playlists.indexOf( playlist );
 //
 //     if( index != -1 ){
-//         qDebug() << "Playlist progress is" << (done ? "done" : "still loading..." ) << index << "(" << sp_playlist_name(pl) << ")";
+//         qDebug() << "Playlist progress is" << (done ? "done" : "still loading..." ) << index << "(" << SpotifyApi::instance()->f_playlist_name(pl) << ")";
 //         m_playlists[ index ].isLoaded = done;
 //         if( done && m_playlists[index].sync_)
 //         {
@@ -1302,7 +1303,7 @@ SpotifyPlaylists::addNewPlaylist( const QVariantMap& data )
     }
 
     m_playlistNameCreationToIgnore.insert( title );
-    sp_playlist* playlist = sp_playlistcontainer_add_new_playlist( SpotifySession::getInstance()->PlaylistContainer(), title.toUtf8() );
+    sp_playlist* playlist = SpotifyApi::instance()->f_playlistcontainer_add_new_playlist( SpotifySession::getInstance()->PlaylistContainer(), title.toUtf8() );
 
     qDebug() << "Created playlist! Adding tracks to it if needed...";
     const QVariantList tracks = data.value( "tracks" ).toList();
@@ -1318,7 +1319,7 @@ void
 SpotifyPlaylists::doAddNewPlaylist( sp_playlist* playlist, const QVariantList& tracks, bool sync, const QString& qid )
 {
 
-    if ( !sp_playlist_is_loaded( playlist ) )
+    if ( !SpotifyApi::instance()->f_playlist_is_loaded( playlist ) )
     {
         qDebug() << "Waiting for playlist to be loaded that we just create...";
         addStateChangedCallback( NewPlaylistClosure( boost::bind(checkPlaylistIsLoaded, playlist), this, SLOT( doAddNewPlaylist(sp_playlist*, const QVariantList&, const QString& ) ), playlist, tracks, qid) );
@@ -1371,9 +1372,9 @@ SpotifyPlaylists::moveTracksInSpotifyPlaylist( const QString& playlistId, const 
 
     sp_playlist* pl = m_playlists[index].playlist_;
 
-    if ( !pl || !sp_playlist_is_loaded( pl ) )
+    if ( !pl || !SpotifyApi::instance()->f_playlist_is_loaded( pl ) )
     {
-        qWarning() << "Asked to move tracks in a spotify playlist that is null or is not loaded!" << pl << ( (pl != 0 ) ? (sp_playlist_is_loaded( pl ) ? "Loaded" : "Unloaded") : QString()) ;
+        qWarning() << "Asked to move tracks in a spotify playlist that is null or is not loaded!" << pl << ( (pl != 0 ) ? (SpotifyApi::instance()->f_playlist_is_loaded( pl ) ? "Loaded" : "Unloaded") : QString()) ;
         return SP_ERROR_INVALID_INDATA;
     }
 
@@ -1399,7 +1400,7 @@ SpotifyPlaylists::moveTracksInSpotifyPlaylist( const QString& playlistId, const 
     newStartPosition = qBound( 0, newStartPosition, m_playlists[index].tracks_.size() ); // safety
 
     sApp->setIgnoreNextUpdate( true );
-    sp_error ret = sp_playlist_reorder_tracks( m_playlists[ index ].playlist_, moveIndexes.constBegin(), moveIndexes.size(), newStartPosition );
+    sp_error ret = SpotifyApi::instance()->f_playlist_reorder_tracks( m_playlists[ index ].playlist_, moveIndexes.constBegin(), moveIndexes.size(), newStartPosition );
     return ret;
 }
 
@@ -1418,7 +1419,7 @@ SpotifyPlaylists::renamePlaylist( const QVariantMap& data )
     {
         const QString newTitle = data.value( "newTitle").toString();
         qDebug() << "Renameing playlist with name " << playlist.name_ << " to " << newTitle;
-        sp_playlist_rename( playlist.playlist_, newTitle.toLatin1() );
+        SpotifyApi::instance()->f_playlist_rename( playlist.playlist_, newTitle.toLatin1() );
 
     }
 
@@ -1453,9 +1454,9 @@ SpotifyPlaylists::addTracksToSpotifyPlaylist( const QVariantMap& data )
 
     sp_playlist* pl = m_playlists[index].playlist_;
 
-    if ( !pl || !sp_playlist_is_loaded( pl ) )
+    if ( !pl || !SpotifyApi::instance()->f_playlist_is_loaded( pl ) )
     {
-        qWarning() << "Asked to add tracks to a spotify playlist that is null or is not loaded!" << pl << ( (pl != 0 ) ? (sp_playlist_is_loaded( pl ) ? "Loaded" : "Unloaded") : QString()) ;
+        qWarning() << "Asked to add tracks to a spotify playlist that is null or is not loaded!" << pl << ( (pl != 0 ) ? (SpotifyApi::instance()->f_playlist_is_loaded( pl ) ? "Loaded" : "Unloaded") : QString()) ;
         return;
     }
 
@@ -1483,7 +1484,7 @@ void
 SpotifyPlaylists::doAddTracksToSpotifyPlaylist( const QVariantList& tracks, sp_playlist* pl, const QString& playlistId, int startPosition )
 {
 
-    qDebug() << "Adding tracks to playlist " << sp_playlist_name( pl );
+    qDebug() << "Adding tracks to playlist " << SpotifyApi::instance()->f_playlist_name( pl );
     qDebug() << "Adding tracks to spotify playlist at position:" << startPosition;
 
     AddTracksData* addData = new AddTracksData;
@@ -1505,9 +1506,9 @@ SpotifyPlaylists::doAddTracksToSpotifyPlaylist( const QVariantList& tracks, sp_p
 
         QString query = QString(artist + " " + title + " " + album);
 #if SPOTIFY_API_VERSION >= 11
-        sp_search* s = sp_search_create( SpotifySession::getInstance()->Session(), query.toUtf8().data(), 0, 1, 0, 0, 0, 0, 0, 0, SP_SEARCH_STANDARD, &SpotifySearch::addSearchedTrack, addData );
+        sp_search* s = SpotifyApi::instance()->f_search_create( SpotifySession::getInstance()->Session(), query.toUtf8().data(), 0, 1, 0, 0, 0, 0, 0, 0, SP_SEARCH_STANDARD, &SpotifySearch::addSearchedTrack, addData );
 #else
-        sp_search* s = sp_search_create( SpotifySession::getInstance()->Session(), query.toUtf8().data(), 0, 1, 0, 0, 0, 0, &SpotifySearch::addSearchedTrack, addData );
+        sp_search* s = SpotifyApi::instance()->f_search_create( SpotifySession::getInstance()->Session(), query.toUtf8().data(), 0, 1, 0, 0, 0, 0, &SpotifySearch::addSearchedTrack, addData );
 #endif
         qDebug() << "Got sp_search object for track:" << s << query;
         addData->waitingFor++;
@@ -1525,22 +1526,22 @@ SpotifyPlaylists::findTrackPosition( const QList< sp_track* > tracks, const QStr
 
     if ( !trackId.isEmpty() )
     {
-        sp_link* link = sp_link_create_from_string( trackId.toUtf8().constData() );
-        if ( sp_link_type( link ) == SP_LINKTYPE_TRACK )
+        sp_link* link = SpotifyApi::instance()->f_link_create_from_string( trackId.toUtf8().data() );
+        if ( SpotifyApi::instance()->f_link_type( link ) == SP_LINKTYPE_TRACK )
         {
-            sp_track* targetTrack = sp_link_as_track( link );
+            sp_track* targetTrack = SpotifyApi::instance()->f_link_as_track( link );
             for ( int i = 0; i < tracks.size(); i++ )
             {
                 const sp_track* track = tracks[ i ];
                 if ( track == targetTrack )
                 {
-                    qDebug() << "Found track in playlist with associated id to use as insertion point:" << trackId << sp_track_name( targetTrack ) << sp_track_artist( targetTrack, 0 ) << "at:" << i << "out of:" << tracks.size() << "tracks";
+                    qDebug() << "Found track in playlist with associated id to use as insertion point:" << trackId << SpotifyApi::instance()->f_track_name( targetTrack ) << SpotifyApi::instance()->f_track_artist( targetTrack, 0 ) << "at:" << i << "out of:" << tracks.size() << "tracks";
                     position = i;
                     break;
                 }
             }
         }
-        sp_link_release( link );
+        SpotifyApi::instance()->f_link_release( link );
     }
 
     return position;
@@ -1569,9 +1570,9 @@ SpotifyPlaylists::removeFromSpotifyPlaylist( const QVariantMap& data ){
 
     sp_playlist* pl = m_playlists[index].playlist_;
 
-    if ( !pl || !sp_playlist_is_loaded( pl ) )
+    if ( !pl || !SpotifyApi::instance()->f_playlist_is_loaded( pl ) )
     {
-        qWarning() << "Asked to remove tracks from a spotify playlist that is null or is not loaded!" << pl << ( (pl != 0 ) ? (sp_playlist_is_loaded( pl ) ? "Loaded" : "Unloaded") : QString()) ;
+        qWarning() << "Asked to remove tracks from a spotify playlist that is null or is not loaded!" << pl << ( (pl != 0 ) ? (SpotifyApi::instance()->f_playlist_is_loaded( pl ) ? "Loaded" : "Unloaded") : QString()) ;
         return false;
     }
 
@@ -1601,39 +1602,39 @@ SpotifyPlaylists::removeFromSpotifyPlaylist( const QVariantMap& data ){
 
                 char trackId[356];
                 sp_track *track = m_playlists[index].tracks_[ i ];
-                sp_link* l = sp_link_create_from_track( track, 0 );
-                sp_link_as_string(l, trackId, sizeof(trackId));
+                sp_link* l = SpotifyApi::instance()->f_link_create_from_track( track, 0 );
+                SpotifyApi::instance()->f_link_as_string(l, trackId, sizeof(trackId));
 
                 if( id == QString::fromUtf8(trackId) )
                 {
                     qDebug() << "Found track at pos" << i << " removing";
                     positions.append( i );
 
-                    sp_link_release( l );
+                    SpotifyApi::instance()->f_link_release( l );
                     break;
                 }
 
-                sp_link_release( l );
+                SpotifyApi::instance()->f_link_release( l );
 
             }
         }
         else
         {
             // No id in track, so do fuzzy matching.
-            for(int i = 0; i < sp_playlist_num_tracks(pl); i++)
+            for(int i = 0; i < SpotifyApi::instance()->f_playlist_num_tracks(pl); i++)
             {
                 // If we have duplicates of the track to remove, don't try to remove the same thing twice.
                 if ( positions.contains( i ) )
                     continue;
 
-                sp_track *track = sp_playlist_track( m_playlists[index].playlist_, i);
+                sp_track *track = SpotifyApi::instance()->f_playlist_track( m_playlists[index].playlist_, i);
 
                 qDebug() << "Comparing track for removal:";
-                qDebug() << title.toLower() << QString::fromUtf8( sp_track_name( track ) ).toLower();
-                qDebug() << artist.toLower() << QString::fromUtf8( sp_artist_name( sp_track_artist( track, 0 ) ) ).toLower();
+                qDebug() << title.toLower() << QString::fromUtf8( SpotifyApi::instance()->f_track_name( track ) ).toLower();
+                qDebug() << artist.toLower() << QString::fromUtf8( SpotifyApi::instance()->f_artist_name( SpotifyApi::instance()->f_track_artist( track, 0 ) ) ).toLower();
 
-                if( title.toLower() == QString::fromUtf8( sp_track_name( track ) ).toLower() &&
-                    artist.toLower() == QString::fromUtf8( sp_artist_name( sp_track_artist( track, 0 ) ) ).toLower() )
+                if( title.toLower() == QString::fromUtf8( SpotifyApi::instance()->f_track_name( track ) ).toLower() &&
+                    artist.toLower() == QString::fromUtf8( SpotifyApi::instance()->f_artist_name( SpotifyApi::instance()->f_track_artist( track, 0 ) ) ).toLower() )
                 {
                     qDebug() << "Found track match at pos" << i << " removing";
                     positions.append( i );
@@ -1660,7 +1661,7 @@ SpotifyPlaylists::removeFromSpotifyPlaylist( const QVariantMap& data ){
         qDebug() << "Removing found:" << positions.size() << "tracks from playlist!";
 
         sApp->setIgnoreNextUpdate( true );
-        sp_error ret = sp_playlist_remove_tracks( pl, positions.constData(), positions.size());
+        sp_error ret = SpotifyApi::instance()->f_playlist_remove_tracks( pl, positions.constData(), positions.size());
 
         return ret == SP_ERROR_OK && tracks.size() == positions.size();
 
@@ -1682,7 +1683,7 @@ SpotifyPlaylists::updateRevision( LoadedPlaylist &pl )
     int timestamp(0);
     for( int i = 0; i < pl.tracks_.count(); i++)
     {
-        int tmpTimestamp = sp_playlist_track_create_time( pl.playlist_, i );
+        int tmpTimestamp = SpotifyApi::instance()->f_playlist_track_create_time( pl.playlist_, i );
 
         if( timestamp < tmpTimestamp )
             timestamp = tmpTimestamp;
@@ -1815,12 +1816,12 @@ SpotifyPlaylists::addPlaylist( sp_playlist *pl, bool forceSync, bool isSubscribe
         return;
     }
 
-    if( !sp_playlist_is_loaded( pl ) ){
+    if( !SpotifyApi::instance()->f_playlist_is_loaded( pl ) ){
         qDebug() << Q_FUNC_INFO << "Pl isnt loaded";
         return;
     }
 
-//     qDebug() << "Playlist has " << sp_playlist_num_tracks( pl ) << " number of tracks";
+//     qDebug() << "Playlist has " << SpotifyApi::instance()->f_playlist_num_tracks( pl ) << " number of tracks";
 
     m_waitingToLoad.removeAll( pl );
 
@@ -1828,11 +1829,11 @@ SpotifyPlaylists::addPlaylist( sp_playlist *pl, bool forceSync, bool isSubscribe
 
     // Get the spotify id for the playlist
     char linkStr[256];
-    sp_link *pl_link = sp_link_create_from_playlist( pl );
+    sp_link *pl_link = 0; //SpotifyApi::instance()->f_link_create_from_playlist( pl );
     if( pl_link ){
 
-        sp_link_as_string( pl_link, linkStr, sizeof(linkStr));
-        sp_link_release( pl_link );
+        SpotifyApi::instance()->f_link_as_string( pl_link, linkStr, sizeof(linkStr));
+        SpotifyApi::instance()->f_link_release( pl_link );
 
         playlist.id_ = linkStr;
     }
@@ -1841,7 +1842,7 @@ SpotifyPlaylists::addPlaylist( sp_playlist *pl, bool forceSync, bool isSubscribe
 
         ///    Due to reasons in the playlist backend design and the Spotify URI scheme you need to
         ///    wait for the playlist to be loaded before you can successfully construct an URI.
-        ///    If sp_link_create_from_playlist() returns NULL, try again after teh playlist_state_changed callback has fired
+        ///    If SpotifyApi::instance()->f_link_create_from_playlist() returns NULL, try again after teh playlist_state_changed callback has fired
         ///    @author Spotify dev
         ///    Will be added at next state change
 
@@ -1854,8 +1855,8 @@ SpotifyPlaylists::addPlaylist( sp_playlist *pl, bool forceSync, bool isSubscribe
         return;
 
     playlist.playlist_ = pl;
-    playlist.name_ = sp_playlist_name(pl);
-    playlist.isCollaborative = sp_playlist_is_collaborative( pl );
+    playlist.name_ = SpotifyApi::instance()->f_playlist_name(pl);
+    playlist.isCollaborative = SpotifyApi::instance()->f_playlist_is_collaborative( pl );
     playlist.isSubscribed = isSubscribed;
     playlist.starContainer_ = false;
     playlist.sync_ = false;
@@ -1863,10 +1864,10 @@ SpotifyPlaylists::addPlaylist( sp_playlist *pl, bool forceSync, bool isSubscribe
 
     int tmpRev = 0;
 
-    sp_playlist_add_ref( pl );
+    SpotifyApi::instance()->f_playlist_add_ref( pl );
 
     // Precaution, to prevent mixing up the starred tracks container and user playlistnameings.
-    QString username = sp_user_canonical_name( sp_session_user( SpotifySession::getInstance()->Session() ) );
+    QString username = SpotifyApi::instance()->f_user_canonical_name( SpotifyApi::instance()->f_session_user( SpotifySession::getInstance()->Session() ) );
 #if SPOTIFY_API_VERSION >= 11
     if( playlist.id_.contains( username + ":starred" ) )
 #else
@@ -1878,14 +1879,14 @@ SpotifyPlaylists::addPlaylist( sp_playlist *pl, bool forceSync, bool isSubscribe
         playlist.starContainer_ = true;
     }
 
-    qDebug() << "Adding " << sp_playlist_num_tracks( playlist.playlist_ ) << "tracks to our LoadedPlaylist object for" << playlist.name_;
-    for ( int i=0 ; i< sp_playlist_num_tracks( playlist.playlist_ ); ++i )
+    qDebug() << "Adding " << SpotifyApi::instance()->f_playlist_num_tracks( playlist.playlist_ ) << "tracks to our LoadedPlaylist object for" << playlist.name_;
+    for ( int i=0 ; i< SpotifyApi::instance()->f_playlist_num_tracks( playlist.playlist_ ); ++i )
     {
 
-        sp_track* track = sp_playlist_track( pl, i );
-        sp_track_add_ref( track );
+        sp_track* track = SpotifyApi::instance()->f_playlist_track( pl, i );
+        SpotifyApi::instance()->f_track_add_ref( track );
         // Set revision on initation
-        int timestamp = sp_playlist_track_create_time( pl, i);
+        int timestamp = SpotifyApi::instance()->f_playlist_track_create_time( pl, i);
 //             qDebug() << "Timestamp " << timestamp;
         if( tmpRev < timestamp)
             tmpRev = timestamp;
@@ -1920,7 +1921,7 @@ SpotifyPlaylists::addPlaylist( sp_playlist *pl, bool forceSync, bool isSubscribe
     }
 
     // We need to add the callbacks for normal playlist, to keep listening on changes.
-    sp_playlist_add_callbacks( playlist.playlist_, &SpotifyCallbacks::playlistCallbacks, this);
+    SpotifyApi::instance()->f_playlist_add_callbacks( playlist.playlist_, &SpotifyCallbacks::playlistCallbacks, this);
     // emit starred playlist is loaded
     if( playlist.starContainer_ )
         emit notifyStarredTracksLoadedSignal();
@@ -1946,7 +1947,7 @@ void SpotifyPlaylists::ensurePlaylistsLoadedTimerFired()
     QList< sp_playlist* > toCheck = m_waitingToLoad; // addPlaylist will modify m_waitingToLoad
     for ( int i = 0; i < toCheck.size(); i++ )
     {
-        if ( sp_playlist_is_loaded( toCheck[ i ] ) )
+        if ( SpotifyApi::instance()->f_playlist_is_loaded( toCheck[ i ] ) )
         {
             qDebug() << "Delayed find of playlist that is actually loaded... adding";
             addPlaylist( toCheck[ i ] );

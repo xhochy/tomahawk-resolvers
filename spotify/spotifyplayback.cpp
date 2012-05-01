@@ -16,6 +16,7 @@
 
 #include "spotifyplayback.h"
 #include "spotifysession.h"
+#include "SpotifyApi.h"
 
 #include <QString>
 #include <QDebug>
@@ -96,7 +97,7 @@ SpotifyPlayback::endTrack()
         m_iodev->close();
         m_iodev.clear();
 
-        sp_session_player_unload(SpotifySession::getInstance()->Session());
+        SpotifyApi::instance()->f_session_player_unload(SpotifySession::getInstance()->Session());
     }
     m_trackEnded = true;
 }
@@ -110,7 +111,7 @@ SpotifyPlayback::trackIsOver()
 void
 SpotifyPlayback::endOfTrack(sp_session *session)
 {
-    SpotifySession* _session = reinterpret_cast<SpotifySession*>( sp_session_userdata( session ) );
+    SpotifySession* _session = reinterpret_cast<SpotifySession*>( SpotifyApi::instance()->f_session_userdata( session ) );
 //     qDebug() << "Got spotify end of track callback!";
     if ( !_session->Playback()->trackIsOver() )
         _session->Playback()->endTrack();
@@ -120,7 +121,7 @@ SpotifyPlayback::endOfTrack(sp_session *session)
 int
 SpotifyPlayback::musicDelivery(sp_session *session, const sp_audioformat *format, const void *frames, int numFrames_)
 {
-    SpotifySession* _session = reinterpret_cast<SpotifySession*>(sp_session_userdata(session));
+    SpotifySession* _session = reinterpret_cast<SpotifySession*>(SpotifyApi::instance()->f_session_userdata(session));
     Q_ASSERT (_session);
 
     QMutex &m = _session->Playback()->dataMutex();

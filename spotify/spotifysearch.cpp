@@ -29,6 +29,8 @@
 #include "spotifyplaylists.h"
 #include "PlaylistClosure.h"
 
+#include "SpotifyApi.h"
+
 #include <QDebug>
 #include <boost/bind.hpp>
 class SpotifyPlaylists;
@@ -38,7 +40,7 @@ SpotifySearch::addSearchedTrack( sp_search *result, void *userdata)
 {
     SpotifyPlaylists::AddTracksData *data = reinterpret_cast<SpotifyPlaylists::AddTracksData*>(userdata);
 
-    if( sp_search_num_tracks( result ) < 1 )
+    if( SpotifyApi::instance()->f_search_num_tracks( result ) < 1 )
     {
         const int pos = data->searchOrder.indexOf( result );
         qWarning() << "Got no search result for track we tried to add! Ignoring it... index is:" << pos;
@@ -46,25 +48,25 @@ SpotifySearch::addSearchedTrack( sp_search *result, void *userdata)
         data->waitingFor--;
 
         // Send error
-        SpotifySession::getInstance()->doSendErrorMsg( QString("Can not add %1 to Spotify, not found in catalog.").arg( QString::fromUtf8(sp_search_query( result ) ) ), false );
+        SpotifySession::getInstance()->doSendErrorMsg( QString("Can not add %1 to Spotify, not found in catalog.").arg( QString::fromUtf8(SpotifyApi::instance()->f_search_query( result ) ) ), false );
     }
     else
     {
         int cur = 0;
-        int max = sp_search_num_tracks(result);
+        int max = SpotifyApi::instance()->f_search_num_tracks(result);
         while( cur < max )
         {
             // Find a loaded track to add to the list
-            sp_track *const tr = sp_search_track( result, cur );
+            sp_track *const tr = SpotifyApi::instance()->f_search_track( result, cur );
 
-//             qDebug() << "Got search result:" << result << sp_track_name( tr ) << sp_artist_name( sp_track_artist( tr, 0 ) );
+//             qDebug() << "Got search result:" << result << SpotifyApi::instance()->f_track_name( tr ) << SpotifyApi::instance()->f_artist_name( SpotifyApi::instance()->f_track_artist( tr, 0 ) );
             if( !tr ) {
                 qDebug() << "Got an invalid search result, skipping";
 
                 cur++;
                 continue;
             }
-            else if ( !sp_track_is_loaded( tr ) )
+            else if ( !SpotifyApi::instance()->f_track_is_loaded( tr ) )
             {
                 qDebug() << "Track in search results was not loaded!! Enqueueing to state changed callback!";
                 QList< sp_track * > waitingForLoad = QList< sp_track* >() << tr;
@@ -73,7 +75,7 @@ SpotifySearch::addSearchedTrack( sp_search *result, void *userdata)
             }
 
             const int pos = data->searchOrder.indexOf( result );
-            qDebug() << "Adding track to playlist" << sp_track_name( tr ) << "at index:" << pos;
+            qDebug() << "Adding track to playlist" << SpotifyApi::instance()->f_track_name( tr ) << "at index:" << pos;
             data->finaltracks[ pos ] = tr;
             data->waitingFor--;
             break;
@@ -92,11 +94,11 @@ SpotifySearch::addSearchedTrack( sp_search *result, void *userdata)
             {
                 tracksInserted << i;
 
-                sp_link* l = sp_link_create_from_track( data->finaltracks[i], 0 );
+                sp_link* l = SpotifyApi::instance()->f_link_create_from_track( data->finaltracks[i], 0 );
                 char urlStr[256];
-                sp_link_as_string( l, urlStr, sizeof(urlStr) );
+                SpotifyApi::instance()->f_link_as_string( l, urlStr, sizeof(urlStr) );
                 insertedIds << QString::fromUtf8( urlStr );
-                sp_link_release( l );
+                SpotifyApi::instance()->f_link_release( l );
             }
         }
 
@@ -114,7 +116,7 @@ SpotifySearch::addSearchedTrack( sp_search *result, void *userdata)
         }
 
         sApp->setIgnoreNextUpdate( true );
-        sp_error err = sp_playlist_add_tracks(data->playlist, data->finaltracks.constBegin(), data->finaltracks.count(), data->pos, sApp->session()->Session());
+        sp_error err = SpotifyApi::instance()->f_playlist_add_tracks(data->playlist, data->finaltracks.constBegin(), data->finaltracks.count(), data->pos, sApp->session()->Session());
 
         switch(err) {
             case SP_ERROR_OK:
@@ -153,27 +155,27 @@ SpotifySearch::searchComplete( sp_search *result, void *userdata )
     QVariantList results;
 
     // TODO search by popularity!
-    qDebug() << "Got num results:" << sp_search_num_tracks( result );
-    if( sp_search_num_tracks( result ) > 0 ) {// we have a result
-        int num = qMin( sp_search_num_tracks( result ), data->fulltext ? 50 : 1 );
+    qDebug() << "Got num results:" << SpotifyApi::instance()->f_search_num_tracks( result );
+    if( SpotifyApi::instance()->f_search_num_tracks( result ) > 0 ) {// we have a result
+        int num = qMin( SpotifyApi::instance()->f_search_num_tracks( result ), data->fulltext ? 50 : 1 );
         for( int i = 0; i < num; i++ ) {
-            sp_track *const tr = sp_search_track( result, i );
-            if( !tr || !sp_track_is_loaded( tr ) ) {
+            sp_track *const tr = SpotifyApi::instance()->f_search_track( result, i );
+            if( !tr || !SpotifyApi::instance()->f_track_is_loaded( tr ) ) {
                 qDebug() << "Got still loading track, skipping";
                 continue;
             }
 
-            sp_link* link  = sp_link_create_from_track( tr, 0 );
+            sp_link* link  = SpotifyApi::instance()->f_link_create_from_track( tr, 0 );
             QString uid = data->resolver->addToTrackLinkMap( link );
 
-            int duration = sp_track_duration( tr ) / 1000;
+            int duration = SpotifyApi::instance()->f_track_duration( tr ) / 1000;
             QVariantMap track;
-            track[ "track" ] = QString::fromUtf8( sp_track_name( tr ) );
-            track[ "artist" ] = QString::fromUtf8( sp_artist_name( sp_track_artist( tr, 0 ) ) );
-            track[ "album" ] = QString::fromUtf8( sp_album_name( sp_track_album( tr ) ) );
-            track[ "albumpos" ] = sp_track_index( tr );
-            track[ "discnumber"] = sp_track_disc( tr );
-            track[ "year" ] = sp_album_year( sp_track_album( tr ) );
+            track[ "track" ] = QString::fromUtf8( SpotifyApi::instance()->f_track_name( tr ) );
+            track[ "artist" ] = QString::fromUtf8( SpotifyApi::instance()->f_artist_name( SpotifyApi::instance()->f_track_artist( tr, 0 ) ) );
+            track[ "album" ] = QString::fromUtf8( SpotifyApi::instance()->f_album_name( SpotifyApi::instance()->f_track_album( tr ) ) );
+            track[ "albumpos" ] = SpotifyApi::instance()->f_track_index( tr );
+            track[ "discnumber"] = SpotifyApi::instance()->f_track_disc( tr );
+            track[ "year" ] = SpotifyApi::instance()->f_album_year( SpotifyApi::instance()->f_track_album( tr ) );
             track[ "mimetype" ] = "audio/basic";
             track[ "source" ] = "Spotify";
             track[ "url" ] = QString( "http://localhost:%1/sid/%2.wav" ).arg( data->resolver->port() ).arg( uid );
@@ -186,13 +188,13 @@ SpotifySearch::searchComplete( sp_search *result, void *userdata )
             track[ "size" ] = bytes;
             results << track;
             data->searchCount = 0;
-            //qDebug() << "Found Track:" << sp_track_name( tr ) << "\n\tReporting:" << track["url"];
+            //qDebug() << "Found Track:" << SpotifyApi::instance()->f_track_name( tr ) << "\n\tReporting:" << track["url"];
         }
 
     }else
     {
-        QString didYouMean = QString::fromUtf8(sp_search_did_you_mean(	result ) );
-        QString queryString = QString::fromUtf8(sp_search_query(	result ) );
+        QString didYouMean = QString::fromUtf8(SpotifyApi::instance()->f_search_did_you_mean(	result ) );
+        QString queryString = QString::fromUtf8(SpotifyApi::instance()->f_search_query(	result ) );
         if(data->searchCount <= 1 ){
             if( didYouMean.isEmpty() )
                 qDebug() << "Tried DidYouMean, but no suggestions available for " << queryString;
@@ -202,9 +204,9 @@ SpotifySearch::searchComplete( sp_search *result, void *userdata )
                 //int distance = QString::compare(queryString, didYouMean, Qt::CaseInsensitive);
                 //qDebug() << "Distance for query is " << distance;//if( distance < 4)
 #if SPOTIFY_API_VERSION >= 11
-                sp_search_create( SpotifySession::getInstance()->Session(), sp_search_did_you_mean(result), 0, data->fulltext ? 50 : 1, 0, 0, 0, 0, 0, 0, SP_SEARCH_STANDARD, &SpotifySearch::searchComplete, data );
+                SpotifyApi::instance()->f_search_create( SpotifySession::getInstance()->Session(), SpotifyApi::instance()->f_search_did_you_mean(result), 0, data->fulltext ? 50 : 1, 0, 0, 0, 0, 0, 0, SP_SEARCH_STANDARD, &SpotifySearch::searchComplete, data );
 #else
-                sp_search_create( SpotifySession::getInstance()->Session(), sp_search_did_you_mean(result), 0, data->fulltext ? 50 : 1, 0, 0, 0, 0, &SpotifySearch::searchComplete, data );
+                SpotifyApi::instance()->f_search_create( SpotifySession::getInstance()->Session(), SpotifyApi::instance()->f_search_did_you_mean(result), 0, data->fulltext ? 50 : 1, 0, 0, 0, 0, &SpotifySearch::searchComplete, data );
 #endif
             }
             data->searchCount++;
@@ -216,7 +218,7 @@ SpotifySearch::searchComplete( sp_search *result, void *userdata )
     }
 
     resp[ "results" ] = results;
-    sp_search_release( result );
+    SpotifyApi::instance()->f_search_release( result );
     data->resolver->sendMessage( resp );
     delete data;
 }
