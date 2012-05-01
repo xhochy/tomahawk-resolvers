@@ -50,6 +50,7 @@ SpotifyApi::instance()
 SpotifyApi::SpotifyApi()
     : m_spotifyLibrary("libspotify")
 {
+    qDebug() << "Try to load libspotify.dll ...";
     if( !m_spotifyLibrary.load() )
         qFatal("loading spotify failed");
     qDebug() << "loading library succeeded, go on";
