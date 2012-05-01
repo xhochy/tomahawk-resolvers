@@ -59,10 +59,10 @@ SpotifyApi::SpotifyApi()
     resolve_spotify_symbol(session_preferred_bitrate);
     resolve_spotify_symbol(session_process_events);
     resolve_spotify_symbol(session_player_unload);
-//     resolve_spotify_symbol(session_user);
-//     resolve_spotify_symbol(session_starred_create);
-//     resolve_spotify_symbol(session_playlistcontainer);
-//     resolve_spotify_symbol(session_connectionstate);
+    resolve_spotify_symbol(session_user);
+    resolve_spotify_symbol(session_starred_create);
+    resolve_spotify_symbol(session_playlistcontainer);
+    resolve_spotify_symbol(session_connectionstate);
     resolve_spotify_symbol(artist_name);
     resolve_spotify_symbol(artist_is_loaded);
     resolve_spotify_symbol(track_album);

@@ -28,6 +28,8 @@
 #include "main.h"
 #include "spotifyresolver.h"
 //#include "appkey.h"
+#include "SpotifyApi.h"
+
 int main(int argc, char *argv[])
 {
 
@@ -35,6 +37,8 @@ int main(int argc, char *argv[])
     /*
       See main.h
     */
+
+    SpotifyApi::instance();
 
     SpotifyResolver app( argc, argv );
     // To force dtors

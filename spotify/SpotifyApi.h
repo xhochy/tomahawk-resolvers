@@ -70,16 +70,16 @@ typedef void (SP_CALLCONV *sp_session_login_t)(sp_session*, const char*, const c
 typedef void (SP_CALLCONV *sp_session_player_unload_t)(sp_session*);
 
 //sp_user *   sp_session_user (sp_session *session)
-typedef sp_user* (SP_CALLCONV sp_session_user_t)(sp_session*);
+typedef sp_user* (SP_CALLCONV *sp_session_user_t)(sp_session*);
 
 //sp_playlist *   sp_session_starred_create (sp_session *session)
-typedef sp_playlist* (SP_CALLCONV sp_session_starred_create_t)(sp_session*);
+typedef sp_playlist* (SP_CALLCONV *sp_session_starred_create_t)(sp_session*);
 
 //sp_playlistcontainer *    sp_session_playlistcontainer (sp_session *session)
-typedef sp_playlistcontainer* (SP_CALLCONV sp_session_playlistcontainer_t)(sp_session*);
+typedef sp_playlistcontainer* (SP_CALLCONV *sp_session_playlistcontainer_t)(sp_session*);
 
 //sp_connectionstate sp_session_connectionstate     (   sp_session *    session      )
-typedef sp_connectionstate (SP_CALLCONV sp_session_connectionstate_t)(sp_session*);
+typedef sp_connectionstate (SP_CALLCONV *sp_session_connectionstate_t)(sp_session*);
 
 
 
